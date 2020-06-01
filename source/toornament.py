@@ -9,15 +9,6 @@
 # Name: Name of the team on Toornament and in Discord
 # TournamentID: Toornament ID of the tournament the team plays in
 #
-# KNOWN ISSUE: PLAYERS AREN'T REFERENCED BY A UNIQUE ID BUT ONLY AS PART OF A LINEUP
-# THEREFORE THIS DATABASE IS REDUNDANT: A PLAYERS INFO CAN ONLY BE RETRIEVED BY GETTING THE
-# COMPLETE TEAM INFO AND FINDING THE CORRECT PLAYER IN THE LINEUP ARRAY
-#
-# Players
-# DiscordID: Unique Discord Developer ID associated with the player
-# UserID: Toornament participant ID of the player
-# TournamentID: Toornament ID of the tournament the player plays in
-#
 # Tournaments
 # TournamentID: Toornament ID of the tournament
 # GuildID: Unique ID of the Discord server the tournament is hosted by
@@ -139,6 +130,7 @@ class TeamInfo:
         return None
 
 
+# This class associates a tournament ID with a guild and optionally a name
 class TournamentInfo:
 
     def __init__(self, name = None, guildID = None, tournamentID = None):
@@ -172,13 +164,6 @@ class ToornamentInterface:
             "Name VARCHAR(63) NOT NULL, "
             "TournamentID BIGINT NOT NULL, "
             "PRIMARY KEY(ParticipantID)"
-        ), overwrite = overwrite)
-
-        self.mysql.createTable("Players", (
-            "DiscordID BIGINT NOT NULL, "
-            "UserID BIGINT NOT NULL, "
-            "TournamentID BIGINT NOT NULL, "
-            "PRIMARY KEY(DiscordID)"
         ), overwrite = overwrite)
 
         self.mysql.createTable("Tournaments", (
@@ -406,14 +391,23 @@ class ToornamentInterface:
         return allTeamInfo
 
 
-    # Updates team information on toornament of the team object that is given
+    # Updates team information on toornament with the team object that is given.
+    # See: https://developer.toornament.com/v2/doc/organizer_participants#patch:tournaments:tournament_id:participants:id
+    # tournamentID: Toornament ID of the tournament the team signed up for
+    # teamInfo: TeamInfo-object containing the new team data to be patched on Toornament
     def patchTeamInfo(self, tournamentID, teamInfo: TeamInfo):
         requestURL = f"https://api.toornament.com/organizer/v2/tournaments/{tournamentID}/participants/{teamInfo.id}"
         requestData = teamInfo.toJSON()
         self.__requestPatch(url = requestURL, data = requestData, authorization=True)
 
 
+    # Returns an object containing basic information on a certain tournament on Toornament.
+    # Either a toornament ID, or both a guildID and name must be given.
+    # tournamentID: Toornament ID of the tournament
+    # guildID: ID of the Discord guild the tournament is hosted in
+    # name: Name of the tournament used on Discord or Toornament
     def getTournamentInfo(self, tournamentID = None, guildID = None, name = None) -> TournamentInfo:
+        # Returns information for given tournament id
         if tournamentID is not None:
             self.mysql.query("SELECT GuildID, Name FROM Tournaments WHERE TournamentID=%s;", (tournamentID,))
             results = self.mysql.fetchResults()
@@ -425,6 +419,7 @@ class ToornamentInterface:
                 name = results[0][1]
                 return TournamentInfo(name, guildID, tournamentID)
 
+        # Returns information for given guild id and tournament name
         elif guildID is not None and name is not None:
             self.mysql.query("SELECT TournamentID FROM Tournaments WHERE Name=%s AND GuildID=%s;", (name, guildID,))
             results = self.mysql.fetchResults()
@@ -435,9 +430,15 @@ class ToornamentInterface:
                 tournamentID = results[0][0]
                 return TournamentInfo(name, guildID, tournamentID)
         
+        # Invalid input
         else:
             raise ValueError("Either a tournament ID, or a tournament name and guild ID must be supplied")
 
+
+    # Adds a tournament from toornament to a discord guild.
+    # tournamentID: Toornament ID of the tournament
+    # guildID: ID of the Discord guild the tournament is hosted in
+    # name: Name of the tournament used on Discord or Toornament
     def addTournament(self, tournamentID, guildID, name = None):
         if name is None:
             self.mysql.query("INSERT INTO Tournaments (TournamentID, GuildID) VALUES (%s, %s);", (tournamentID, guildID,))
