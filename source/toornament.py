@@ -72,8 +72,8 @@ class TeamInfo:
 
     def __init__(self):
         self.name = ""
-        self.roleID = ""
-        self.emoteID = ""
+        self.roleID = 0
+        self.emoteID = 0
 
     @classmethod
     def fromJSON(cls, teamJSON):
@@ -139,6 +139,28 @@ class TournamentInfo:
         self.tournamentID = tournamentID
 
 
+# This class contains all relevant information for a toornament signup.
+# For this the TeamInfo class is reused. The ID stored by RegistrationInfo
+# is a unique registration identifier, while the participant ID is stored by
+# the TeamInfo object.
+class RegistrationInfo:
+
+    def __init__(self):
+        self.id = ""
+
+    @classmethod
+    def fromJSON(cls, regJSON):
+        self.team = TeamInfo.fromJSON(regJSON)
+        self.team.id = regJSON['participant_id']
+        self.id = regJSON['id']
+
+    def toJSON(self):
+        teamJSON = self.team.toJSON()
+        teamJSON['id'] = self.id
+        teamJSON['participant_id'] = self.team.id
+        return teamJSON
+
+
 # Provides various methods to retrieve team and player information from toornament.
 class ToornamentInterface:
 
@@ -171,6 +193,13 @@ class ToornamentInterface:
             "GuildID BIGINT NOT NULL, "
             "Name VARCHAR(63) NOT NULL, "
             "PRIMARY KEY(TournamentID)"
+        ), overwrite = overwrite)
+
+        self.mysql.createTable("RegistrationIssues", (
+            "IssueID INT AUTO_INCREMENT, "
+            "RegistrationID BIGINT NOT NULL, "
+            "Description VARCHAR(1023) NOT NULL, "
+            "PRIMARY KEY (IssueID)"
         ), overwrite = overwrite)
 
 
@@ -393,12 +422,30 @@ class ToornamentInterface:
 
     # Updates team information on toornament with the team object that is given.
     # See: https://developer.toornament.com/v2/doc/organizer_participants#patch:tournaments:tournament_id:participants:id
+    # Additionally updates the MySQL database with the team role&emote.
     # tournamentID: Toornament ID of the tournament the team signed up for
     # teamInfo: TeamInfo-object containing the new team data to be patched on Toornament
     def patchTeamInfo(self, tournamentID, teamInfo: TeamInfo):
         requestURL = f"https://api.toornament.com/organizer/v2/tournaments/{tournamentID}/participants/{teamInfo.id}"
         requestData = teamInfo.toJSON()
         self.__requestPatch(url = requestURL, data = requestData, authorization=True)
+
+        self.mysql.query(
+            (
+                "INSERT INTO Teams (ParticipantID, RoleID, EmoteID, Name, TournamentID) "
+                "VALUES (%(participantID)s, %(roleID)s, %(emoteID)s, %(name)s, %(tournamentID)s) "
+                "ON DUPLICATE KEY UPDATE RoleID=%(roleID)s, EmoteID=%(emoteID)s, Name=%(name)s;"
+            ),
+            {
+                "participantID": teamInfo.id,
+                "roleID": teamInfo.roleID,
+                "emoteID": teamInfo.emoteID,
+                "name": teamInfo.name,
+                "tournamentID": tournamentID
+            }
+        )
+
+        self.mysql.db.commit()
 
 
     # Returns an object containing basic information on a certain tournament on Toornament.

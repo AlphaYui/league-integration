@@ -24,10 +24,15 @@ cfg = BotConfig(discordHelper, mysql)
 
 ##### COMMANDS #####
 
+@bot.command()
+async def emote(ctx, tournamentID, emoteName, imageURL):
+    newEmote = await discordHelper.createEmote(tournamentID, emoteName, imageURL)
+    await ctx.send(f"Created new emote: <:{newEmote.name}:{newEmote.id}>")
+    
+
 # Tries to fetch all teams from toornament, create team roles for them and give them to players.
 @bot.command()
 async def all(ctx: commands.Context, tournamentID: int):
-
 
     try:
         # Gets team role template for this tournament
@@ -72,6 +77,7 @@ async def all(ctx: commands.Context, tournamentID: int):
                     await player.add_roles(teamRole, reason = "Player on team")
             
             # Updates team information on toornament with the converted Discord IDs
+            teamInfo.roleID = teamRole.id
             toornament.patchTeamInfo(tournamentID, teamInfo)
 
         await ctx.send(msg)

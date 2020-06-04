@@ -10,6 +10,7 @@ import discord
 from discord.ext import commands
 
 from toornament import *
+import utility
 
 class DiscordHelper:
 
@@ -86,4 +87,25 @@ class DiscordHelper:
                 hoist = roleTemplate.hoist,
                 mentionable = roleTemplate.mentionable
             )
+
+    # Creates a new Discord emote for a tournament and returns it.
+    # tournamentID: Toornament ID of tournament the emote belongs to
+    # name: Name used to post the emote by members
+    # imageURL: URL of the emote
+    # reason: Optional reason for the emote creation, shows up in logs
+    async def createEmote(self, tournamentID, name, imageURL, reason = None):
+
+        # Downloads image from URL
+        imageData = utility.downloadImage(imageURL, (96, 96))
+
+        # Adds the image as a new emote to the tournament guild
+        guild = self.getGuild(tournamentID)
+
+        newEmote = await guild.create_custom_emoji(
+            name = name, 
+            image = imageData,
+            reason = reason
+        )
+
+        return newEmote
     
